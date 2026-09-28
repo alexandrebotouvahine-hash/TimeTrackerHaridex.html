@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Time Tracker Haridex</title>
+<style>
+/* ... (Le CSS reste strictement identique à la version précédente) ... */
+body{ margin:0; font-family: 'Segoe UI', Arial, sans-serif; background:#f2f2f2; }
+#loginPage { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #f2f2f2; z-index: 10000; display: flex; justify-content: center; align-items: center; }
+.login-card { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); width: 360px; box-sizing: border-box; }
+.login-card h2 { color: #0C769E; margin-top: 0; margin-bottom: 20px; text-align: center; font-size: 22px; }
+.login-card label { font-size: 13px; font-weight: bold; color: #333; display: block; margin-top: 10px; }
+.login-card input { width: 100%; padding: 10px; margin: 5px 0 15px 0; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
+.login-card button { width: 100%; background: #0C769E; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 15px; transition: background 0.2s; }
+.login-card button:hover { background: #095977; }
+.login-error { color: #dc3545; font-size: 13px; margin-top: 10px; text-align: center; display: none; font-weight: 500; }
+.topbar{ background:#C0E6F5; display:flex; justify-content:space-between; align-items:center; padding:10px 15px; }
+.title{ font-size:18px; font-weight:bold; color: #0C769E; }
+.menu span{ margin:0 10px; cursor:pointer; font-size:14px; font-weight: 500; }
+.menu span:hover{ text-decoration: underline; }
+.actions button{ margin-left:8px; padding:6px 10px; border:none; border-radius:5px; cursor:pointer; font-weight: bold; }
+.logout{ background:orange; color:white; }
+.export{ background:#0078D4; color:white; }
+.secondbar{ background:#0C769E; padding:10px; display:flex; align-items:center; gap:10px; color:white; }
+.secondbar select{ padding:6px; border-radius:8px; border:none; min-width:140px; }
+.secondbar button{ padding:6px 12px; border:none; border-radius:6px; background:#00a65a; color:white; cursor:pointer; font-weight: bold; }
+.timer{ margin-left:auto; font-weight:bold; font-size: 18px; font-family: monospace; }
+.page{ display:none; }
+.active{ display:block; }
+.container{ padding:15px; }
+.day-block{ background:white; margin-bottom:15px; border-radius:8px; overflow:hidden; box-shadow:0 2px 6px rgba(0,0,0,0.1); }
+.day-title{ background:#C0E6F5; padding:8px; font-weight:bold; }
+.table-responsive { overflow-x: auto; }
+table{ width:100%; border-collapse:collapse; font-size:13px; }
+th{ background:#C0E6F5; padding:6px; }
+td{ border:1px solid #ddd; padding:6px; text-align:center; }
+.modal{ display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:999; }
+.modal-content{ background:white; width:420px; margin:120px auto; padding:15px; border-radius:10px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+.modal-content input{ width:100%; padding:8px; margin:5px 0; box-sizing: border-box; }
+.modal-content button { margin-top: 5px; padding: 6px 12px; cursor: pointer; }
+#statusCard { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+</style>
+</head>
+<body>
+
+<div id="loginPage">
+    <div class="login-card">
+        <h2>Welcome to Time Tracker Haridex</h2>
+        <label for="loginEmail">Utilisateur</label>
+        <input type="email" id="loginEmail" placeholder="haridex.gestion@gmail.com">
+        <label for="loginPassword">Mot de passe</label>
+        <input type="password" id="loginPassword" placeholder="••••••••">
+        <button onclick="checkLogin()">Se connecter</button>
+        <div id="loginError" class="login-error">Identifiants incorrects ou accès refusé.</div>
+    </div>
+</div>
+
+<div class="topbar">
+    <div class="title">Time Tracker Haridex <span id="currentUserDisplay" style="font-size:12px; font-weight:normal; color:#555; margin-left:10px;"></span></div>
+    <div class="menu">
+        <span onclick="showMain()">Chrono ⏱</span>
+        <span onclick="openActivity()">Activity 🔒</span>
+        <span onclick="showRealtime()">Real Time 👁</span>
+    </div>
+    <div class="actions">
+        <button class="export" onclick="openExport()">⬇ Export</button>
+        <button class="logout" onclick="logout()">Logout</button>
+    </div>
+</div>
+
+<div class="secondbar">
+    <select id="project"></select>
+    <select id="activity"></select>
+    <button onclick="startChange()">Start / Change</button>
+    <div class="timer" id="timer">00:00:00</div>
+</div>
+
+<div id="mainPage" class="page active">
+    <div class="container">
+        <div id="statusCard">
+            <p id="currentStateText" style="font-size: 16px; margin: 0; color: #555;">Connexion au serveur...</p>
+        </div>
+    </div>
+</div>
+
+<div id="realTimePage" class="page">
+    <div class="container" id="history"></div>
+</div>
+
+<div class="modal" id="activityModal">
+    <div class="modal-content">
+        <h3>Activity Admin</h3>
+        <input id="newProject" placeholder="Nouveau projet">
+        <button onclick="addProject()">Ajouter projet</button>
+        <hr>
+        <input id="newActivity" placeholder="Nouvelle activité">
+        <button onclick="addActivity()">Ajouter activité</button>
+        <hr>
+        <button onclick="closeActivity()" style="background:#ddd; border:none; border-radius:4px;">Fermer</button>
+    </div>
+</div>
+
+<div class="modal" id="exportModal">
+    <div class="modal-content">
+        <h3>Export CSV</h3>
+        <input type="password" id="exportPass" placeholder="Mot de passe">
+        <label>Début</label>
+        <input type="date" id="startDate">
+        <label>Fin</label>
+        <input type="date" id="endDate">
+        <br><br>
+        <button onclick="doExport()" style="background:#0078D4; color:white; border:none; padding:8px 12px; border-radius:4px;">Télécharger CSV</button>
+        <button onclick="closeExport()" style="background:#ddd; border:none; padding:8px 12px; border-radius:4px;">Annuler</button>
+    </div>
+</div>
+
+<script>
+/* ========================= CONFIGURATION ========================= */
+const VALID_USERS = {
+    "haridex.gestion@gmail.com": "ornella@501",
+    "alexandre.haridex@gmail.com": "alexandre@651",
+    "julia.haridex@gmail.com": "julia@786"
+};
+const PASSWORD = "HARIDEX@TIMER6";
+
+/* VARIABLES GLOBALES SYNC AVEC LE SERVEUR */
+let projects = [];
+let activities = [];
+let logsByDate = {};
+let current = null; 
+
+// La clé d'accès reste dans le navigateur pour le confort, TOUTES les données vont en BDD
+let currentUser = localStorage.getItem("current_session_user") || null;
+
+/* ========================= INIT & SYNC SERVEUR ========================= */
+async function loadDataFromServer() {
+    try {
+        let res = await fetch('/api/data');
+        let data = await res.json();
+
+        projects = data.projects;
+        activities = data.activities;
+        
+        // Reconstruction de la structure logsByDate à partir des lignes SQLite
+        logsByDate = {};
+        data.logs.forEach(l => {
+            if (!logsByDate[l.date]) logsByDate[l.date] = [];
+            logsByDate[l.date].push(l);
+        });
+
+        // Détection du chrono en cours pour l'utilisateur connecté
+        if (currentUser) {
+            let activeTask = data.current_tracking.find(c => c.user === currentUser);
+            if (activeTask) {
+                current = activeTask;
+            } else {
+                current = null;
+            }
+        }
+
+        fill();
+        initSessionCheck();
+        updateUIState();
+    } catch (e) {
+        console.error("Erreur de communication avec le serveur SQLite:", e);
+        document.getElementById("currentStateText").innerText = "❌ Serveur inaccessible.";
+    }
+}
+
+/* ========================= AUTHENTIFICATION ========================= */
+function checkLogin() {
+    let email = document.getElementById("loginEmail").value.trim().toLowerCase();
+    let pass = document.getElementById("loginPassword").value;
+    let errDiv = document.getElementById("loginError");
+
+    if (VALID_USERS[email] && VALID_USERS[email] === pass) {
+        currentUser = email;
+        localStorage.setItem("current_session_user", currentUser);
+        document.getElementById("loginPage").style.display = "none";
+        errDiv.style.display = "none";
+        
+        document.getElementById("currentUserDisplay").innerText = `(Connecté: ${currentUser})`;
+        loadDataFromServer(); // Recharge la vue spécifique du user une fois connecté
+    } else {
+        errDiv.style.display = "block";
+    }
+}
+
+function initSessionCheck() {
+    if (currentUser && VALID_USERS[currentUser]) {
+        document.getElementById("loginPage").style.display = "none";
+        document.getElementById("currentUserDisplay").innerText = `(Connecté: ${currentUser})`;
+    } else {
+        document.getElementById("loginPage").style.display = "flex";
+    }
+}
+
+document.getElementById("loginPassword").addEventListener("keyup", function(event) {
+    if (event.key === "Enter") checkLogin();
+});
+
+/* ========================= DROPDOWNS & UI ========================= */
+function fill(){
+    let p = document.getElementById("project");
+    let a = document.getElementById("activity");
+    p.innerHTML = ""; a.innerHTML = "";
+    projects.forEach(x=> { p.innerHTML += `<option value="${x}">${x}</option>`; });
+    activities.forEach(x=> { a.innerHTML += `<option value="${x}">${x}</option>`; });
+}
+
+function showMain(){ document.getElementById("mainPage").classList.add("active"); document.getElementById("realTimePage").classList.remove("active"); }
+function showRealtime(){ document.getElementById("mainPage").classList.remove("active"); document.getElementById("realTimePage").classList.add("active"); render(); }
+
+function updateUIState() {
+    let txt = document.getElementById("currentStateText");
+    if(current && current.user === currentUser) {
+        let startTime = new Date(current.start).toLocaleTimeString();
+        txt.innerHTML = `⚡ <span style="color:#0078D4; font-weight:bold;">Chrono actif :</span> <strong>${current.project}</strong> ➔ <em>${current.activity}</em> <small style="color:#777;">(Lancé à ${startTime})</small>`;
+    } else {
+        txt.innerHTML = "💤 <strong>Aucun chrono actif.</strong> Sélectionnez un projet et une activité ci-dessus puis cliquez sur Start.";
+    }
+}
+
+/* ========================= CORE TRACKING VIA API ========================= */
+async function startChange(){
+    if(!currentUser) return;
+    
+    let projVal = document.getElementById("project").value;
+    let actVal = document.getElementById("activity").value;
+
+    if(!projVal || !actVal) { alert("❌ Paramètres invalides."); return; }
+
+    if(current){
+        await finish(Date.now());
+    }
+
+    current = { user: currentUser, project: projVal, activity: actVal, start: Date.now() };
+
+    // Push base de données via backend
+    await fetch('/api/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(current)
+    });
+
+    updateUIState();
+    alert("✔ Activité enregistrée dans la DB");
+}
+
+async function finish(endTime){
+    if(!current) return;
+
+    let date = new Date(current.start).toISOString().split("T")[0];
+    
+    let payload = {
+        user: current.user,
+        date: date,
+        project: current.project,
+        activity: current.activity,
+        start: current.start,
+        end: endTime
+    };
+
+    if(!logsByDate[date]) logsByDate[date] = [];
+    logsByDate[date].push(payload);
+
+    // Mouvement d'historisation en base de données
+    await fetch('/api/finish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+
+    current = null;
+    updateUIState();
+}
+
+async function logout(){
+    if(current) {
+        await finish(Date.now());
+    }
+    currentUser = null;
+    localStorage.removeItem("current_session_user");
+    
+    document.getElementById("loginEmail").value = "";
+    document.getElementById("loginPassword").value = "";
+    document.getElementById("loginPage").style.display = "flex";
+    document.getElementById("currentUserDisplay").innerText = "";
+    updateUIState();
+    alert("✔ Déconnexion réussie !");
+}
+
+/* ========================= AFFICHAGE REAL TIME ========================= */
+function render(){
+    let c = document.getElementById("history");
+    c.innerHTML = "";
+
+    let dates = Object.keys(logsByDate);
+    if(dates.length === 0){
+        c.innerHTML = "<p style='padding:10px; color:#666;'>Aucune donnée dans la base.</p>";
+        return;
+    }
+
+    dates.sort().reverse().forEach(date=>{
+        if(!Array.isArray(logsByDate[date])) return; 
+
+        let block = document.createElement("div");
+        block.className = "day-block";
+
+        let html = `
+        <div class="day-title">📅 ${date}</div>
+        <div class="table-responsive">
+            <table>
+                <tr><th>User</th><th>Project</th><th>Activity</th><th>Start</th><th>End</th><th>Duration</th></tr>
+        `;
+
+        logsByDate[date].forEach(l=>{
+            let startTs = Number(l.start);
+            let endTs = Number(l.end);
+            let duration = endTs - startTs;
+            if(isNaN(duration) || duration < 0) duration = 0;
+
+            html += `
+                <tr>
+                    <td style="color:#555; font-weight:500;">${l.user || 'Inconnu'}</td>
+                    <td><strong>${l.project || ''}</strong></td>
+                    <td>${l.activity || ''}</td>
+                    <td>${isNaN(startTs) ? 'N/A' : new Date(startTs).toLocaleTimeString()}</td>
+                    <td>${isNaN(endTs) ? 'N/A' : new Date(endTs).toLocaleTimeString()}</td>
+                    <td style="font-family:monospace; font-weight:bold; color:#0C769E;">${format(duration)}</td>
+                </tr>
+            `;
+        });
+        html += `</table></div>`;
+        block.innerHTML = html;
+        c.appendChild(block);
+    });
+}
+
+function format(ms){
+    if(isNaN(ms) || ms < 0) ms = 0;
+    let s = Math.floor(ms/1000);
+    let h = Math.floor(s/3600);
+    let m = Math.floor((s%3600)/60);
+    s = s%60;
+    return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+}
+
+/* ========================= GESTION ADMIN VIA API ========================= */
+function openActivity(){
+    let pass = prompt("Mot de passe Admin:");
+    if(pass === PASSWORD) document.getElementById("activityModal").style.display = "block";
+    else alert("❌ Refusé");
+}
+function closeActivity(){ document.getElementById("activityModal").style.display = "none"; }
+
+async function addProject(){
+    let v = document.getElementById("newProject").value.trim();
+    if(v && !projects.includes(v)){
+        projects.push(v);
+        await fetch('/api/project', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({name: v}) });
+        fill();
+        document.getElementById("newProject").value = "";
+        alert("✔ Projet ajouté en DB");
+    }
+}
+
+async function addActivity(){
+    let v = document.getElementById("newActivity").value.trim();
+    if(v && !activities.includes(v)){
+        activities.push(v);
+        await fetch('/api/activity', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({name: v}) });
+        fill();
+        document.getElementById("newActivity").value = "";
+        alert("✔ Activité ajoutée en DB");
+    }
+}
+
+/* ========================= EXPORT CSV ========================= */
+function openExport(){
+    let pass = prompt("Mot de passe Admin:");
+    if(pass === PASSWORD) document.getElementById("exportModal").style.display = "block";
+    else alert("❌ Refusé");
+}
+function closeExport(){ document.getElementById("exportModal").style.display = "none"; }
+
+function doExport(){
+    let pass = document.getElementById("exportPass").value;
+    if(pass !== PASSWORD){ alert("❌ Mauvais mot de passe"); return; }
+
+    let start = document.getElementById("startDate").value;
+    let end = document.getElementById("endDate").value;
+    let csv = "User,Project,Activity,Start,End,Duration\n";
+    let dataFound = false;
+
+    Object.keys(logsByDate).sort().forEach(date=>{
+        if((!start || date >= start) && (!end || date <= end)){
+            logsByDate[date].forEach(l=>{
+                dataFound = true;
+                let duration = Number(l.end) - Number(l.start);
+                let startStr = new Date(l.start).toLocaleString().replace(",", " -");
+                let endStr = new Date(l.end).toLocaleString().replace(",", " -");
+                csv += `"${l.user || 'Inconnu'}","${l.project}","${l.activity}","${startStr}","${endStr}","${format(duration)}"\n`;
+            });
+        }
+    });
+
+    if(!dataFound && (start || end)) { alert("⚠ Aucune donnée trouvée."); return; }
+
+    let blob = new Blob(["\uFEFF" + csv], {type:"text/csv;charset=utf-8;"});
+    let a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `export_${start || 'all'}_to_${end || 'all'}.csv`;
+    a.click();
+
+    document.getElementById("exportPass").value = "";
+    closeExport();
+}
+
+/* ========================= DEMARRAGE ========================= */
+loadDataFromServer();
+
+// Moteur du chronomètre
+setInterval(()=>{
+    if(current && currentUser && current.user === currentUser){
+        document.getElementById("timer").innerText = format(Date.now() - current.start);
+    }else{
+        document.getElementById("timer").innerText = "00:00:00";
+    }
+}, 1000);
+</script>
+</body>
+</html>
